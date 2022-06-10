@@ -35,7 +35,6 @@ import           UnliftIO.Exception
 import           Development.IDE.Core.IdeConfiguration
 import           Development.IDE.Core.Shake            hiding (Log)
 import           Development.IDE.Core.Tracing
-import           Development.IDE.LSP.HoverDefinition
 import           Development.IDE.Types.Logger
 
 import           Control.Monad.IO.Unlift               (MonadUnliftIO)
@@ -121,8 +120,7 @@ runLanguageServer recorder options inH outH getHieDbLoc defaultConfig onConfigur
             unless (reqId `Set.member` cancelled) retry
 
     let ideHandlers = mconcat
-          [ setIdeHandlers
-          , userHandlers
+          [ userHandlers
           ]
 
     -- Send everything over a channel, since you need to wait until after initialise before

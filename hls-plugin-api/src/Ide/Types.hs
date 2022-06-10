@@ -217,6 +217,22 @@ pluginResponsible uri pluginDesc
     where
       mfp = uriToFilePath uri
 
+instance PluginMethod TextDocumentDefinition where
+  pluginEnabled = undefined
+  combineResponses = undefined
+instance PluginMethod TextDocumentTypeDefinition where
+  pluginEnabled = undefined
+  combineResponses = undefined
+instance PluginMethod TextDocumentDocumentHighlight where
+  pluginEnabled = undefined
+  combineResponses = undefined
+instance PluginMethod TextDocumentReferences where
+  pluginEnabled = undefined
+  combineResponses = undefined
+instance PluginMethod WorkspaceSymbol where
+  pluginEnabled = undefined
+  combineResponses = undefined
+
 instance PluginMethod TextDocumentCodeLens where
   pluginEnabled _ msgParams pluginDesc config =
     pluginResponsible uri pluginDesc
