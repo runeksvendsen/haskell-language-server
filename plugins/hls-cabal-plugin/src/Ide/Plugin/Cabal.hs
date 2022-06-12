@@ -8,6 +8,10 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE ViewPatterns          #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE RankNTypes            #-}
 
 module Ide.Plugin.Cabal where
 
@@ -30,6 +34,12 @@ import           Language.LSP.Server
 import qualified Development.IDE.Core.Shake as Shake
 
 
+import qualified Language.LSP.Types                    as LSP
+
+-- import           Control.Concurrent.STM.Stats          (atomically)
+import           Control.Monad.Extra
+import Development.IDE.Core.Shake (restartShakeSession)
+
 data Log
   = LogText T.Text
   | LogShake Shake.Log deriving Show
@@ -44,7 +54,41 @@ descriptor recorder plId = (defaultCabalPluginDescriptor plId)
   { pluginRules = exampleRules recorder
   , pluginHandlers = mkPluginHandler STextDocumentCodeLens (codeLens recorder)
   , pluginCommands = [PluginCommand commandId' "example adding" addTodoCmd]
+  , pluginNotificationHandlers = mconcat
+  [ mkPluginNotificationHandler LSP.STextDocumentDidOpen $
+      \ide vfs _ (DidOpenTextDocumentParams TextDocumentItem{_uri,_version}) -> liftIO $ do
+      whenUriFile _uri $ \file -> do
+          logDebug (ideLogger ide) $ "Opened text document: " <> getUri _uri
+          restartShakeSession (shakeExtras ide) (VFSModified vfs) (fromNormalizedFilePath file ++ " (modified)") []
+          runAction "CabalParse" ide $ void $ use Example file
+
+  , mkPluginNotificationHandler LSP.STextDocumentDidChange $
+      \ide vfs _ (DidChangeTextDocumentParams identifier@VersionedTextDocumentIdentifier{_uri} changes) -> liftIO $ do
+      whenUriFile _uri $ \file -> do
+        logDebug (ideLogger ide) $ "Modified text document: " <> getUri _uri
+        restartShakeSession (shakeExtras ide) (VFSModified vfs) (fromNormalizedFilePath file ++ " (modified)") []
+        runAction "CabalParse" ide $ void $ use Example file
+
+  , mkPluginNotificationHandler LSP.STextDocumentDidSave $
+      \ide vfs _ (DidSaveTextDocumentParams TextDocumentIdentifier{_uri} _) -> liftIO $ do
+        whenUriFile _uri $ \file -> do
+          logDebug (ideLogger ide) $ "Saved text document: " <> getUri _uri
+          restartShakeSession (shakeExtras ide) (VFSModified vfs) (fromNormalizedFilePath file ++ " (modified)") []
+          runAction "CabalParse" ide $ void $ use Example file
+
+  , mkPluginNotificationHandler LSP.STextDocumentDidClose $
+        \ide vfs _ (DidCloseTextDocumentParams TextDocumentIdentifier{_uri}) -> liftIO $ do
+          whenUriFile _uri $ \file -> do
+              let msg = "Closed text document: " <> getUri _uri
+              logDebug (ideLogger ide) msg
+              restartShakeSession (shakeExtras ide) (VFSModified vfs) (fromNormalizedFilePath file ++ " (modified)") []
+              runAction "CabalParse" ide $ void $ use Example file
+  ]
+
   }
+  where
+    whenUriFile :: Uri -> (NormalizedFilePath -> IO ()) -> IO ()
+    whenUriFile uri act = whenJust (LSP.uriToFilePath uri) $ act . toNormalizedFilePath'
 
 data Example = Example
     deriving (Eq, Show, Typeable, Generic)
