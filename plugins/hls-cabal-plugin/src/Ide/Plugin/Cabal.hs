@@ -105,7 +105,8 @@ exampleRules recorder = do
     let diagLst = case _pm of
           (_, Left (_, pErrorNE)) ->
             NE.toList $ NE.map (Diag.errorDiag file) pErrorNE
-          _ -> []
+          (warnings, Right _) ->
+            map (Diag.warningDiag file) warnings
     return (diagLst, Just ())
   where
     log' = logWith recorder
